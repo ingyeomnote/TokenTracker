@@ -392,7 +392,6 @@ const PROVIDER_LOGO_MAP = {
   // itself publishes a white-only mark (pi.dev/logo.svg), so it gets the same
   // <img> luminance treatment as AnythingLLM in PROVIDER_LOGO_CLASS_MAP.
   OMP: "/brand-logos/omp.svg",
-  OMO: "/brand-logos/omo.svg",
   OPENCLAW: "/brand-logos/openclaw.svg",
   OPENCODE: "/brand-logos/opencode.svg",
   PI: "/brand-logos/pi.svg",

@@ -49,15 +49,6 @@ describe("ProviderIcon", () => {
     expect(icon).toHaveAttribute("height", "20");
   });
 
-  it("renders the OmO brand logo without colliding with omp", () => {
-    const { container } = render(<ProviderIcon provider="omo" size={20} />);
-    const icon = container.querySelector('img[src="/brand-logos/omo.svg"]');
-    expect(icon).not.toBeNull();
-    expect(icon).toHaveAttribute("width", "20");
-    expect(icon).toHaveAttribute("height", "20");
-    expect(container.querySelector('img[src="/brand-logos/omp.svg"]')).toBeNull();
-  });
-
   it("renders the official white Pi mark with explicit light and dark treatment", () => {
     const { container } = render(<ProviderIcon provider="pi" size={18} />);
     const icon = container.querySelector('img[src="/brand-logos/pi.svg"]');
