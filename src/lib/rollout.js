@@ -12218,6 +12218,7 @@ async function parseOmpLikeIncremental({
   resolveDefaultModel,
   resolveFileCwd,
   reasoningFields,
+  reasoningIncludedInOutput = false,
 } = {}) {
   await ensureDir(path.dirname(queuePath));
   const projectEnabled = typeof projectQueuePath === "string" && projectQueuePath.length > 0;
@@ -12364,10 +12365,12 @@ async function parseOmpLikeIncremental({
       if (!bucketStart) continue;
 
       // Use provided totalTokens when available; otherwise sum all components.
+      // OmO folds reasoning into output, so the fallback must not add it again.
       const totalTokens =
         Number.isFinite(Number(usage.totalTokens)) && Number(usage.totalTokens) > 0
           ? toNonNegativeInt(usage.totalTokens)
-          : input + output + cacheRead + cacheWrite + reasoningTokens;
+          : input + output + cacheRead + cacheWrite +
+            (reasoningIncludedInOutput ? 0 : reasoningTokens);
 
       const model = normalizeModelInput(msg.model) || fallbackModel;
 
@@ -12493,7 +12496,8 @@ async function parseOmpLikeIncremental({
           const totalTokens =
             Number.isFinite(Number(usage.totalTokens)) && Number(usage.totalTokens) > 0
               ? toNonNegativeInt(usage.totalTokens)
-              : input + output + cacheRead + cacheWrite + reasoningTokens;
+              : input + output + cacheRead + cacheWrite +
+                (reasoningIncludedInOutput ? 0 : reasoningTokens);
           const delta = {
             input_tokens: input,
             cached_input_tokens: cacheRead,
@@ -12595,6 +12599,7 @@ async function parseOmoIncremental(options = {}) {
     resolveDefaultModel: resolveOmoDefaultModel,
     resolveFileCwd: resolveOmoFileCwd,
     reasoningFields: ["reasoningTokens", "reasoning"],
+    reasoningIncludedInOutput: true,
   });
 }
 
@@ -12646,6 +12651,13 @@ function piAgentDirCollidesWithOmp(env = process.env) {
   const ompAgentDir = resolveOmpAgentDir(env);
   if (!piAgentDir || !ompAgentDir) return false;
   return path.resolve(piAgentDir) === path.resolve(ompAgentDir);
+}
+
+function omoAgentDirCollidesWithOmp(env = process.env) {
+  const omoAgentDir = resolveOmoAgentDir(env);
+  const ompAgentDir = resolveOmpAgentDir(env);
+  if (!omoAgentDir || !ompAgentDir) return false;
+  return path.resolve(omoAgentDir) === path.resolve(ompAgentDir);
 }
 
 function resolvePiSessionFiles(env = process.env) {
@@ -18329,6 +18341,7 @@ module.exports = {
   resolvePiDefaultModel,
   parsePiIncremental,
   piAgentDirCollidesWithOmp,
+  omoAgentDirCollidesWithOmp,
   resolvePrimeAgentHome,
   resolvePrimeAgentDir,
   resolvePrimeAgentSessionFiles,

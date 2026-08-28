@@ -78,6 +78,7 @@ const {
   resolveOmoSessionFiles,
   resolveOmoSubagentFiles,
   parseOmoIncremental,
+  omoAgentDirCollidesWithOmp,
   resolvePiSessionFiles,
   parsePiIncremental,
   piAgentDirCollidesWithOmp,
@@ -2161,12 +2162,16 @@ async function cmdSync(argv, context = {}) {
     // Same session format as oh-my-pi, but a separate install root, cursor
     // namespace and source label, so the two never shadow each other.
     let omoResult = { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-    const omoFiles = sourceAllowed("omo")
-      ? mergeBothFileSources({ resolveFiles: resolveOmoSessionFiles, env: process.env })
-      : [];
-    const omoSubagentFiles = sourceAllowed("omo")
-      ? mergeBothFileSources({ resolveFiles: resolveOmoSubagentFiles, env: process.env })
-      : [];
+    // Skip OmO when its agent dir resolves to the same path as omp's, so an
+    // explicit TOKENTRACKER_OMO_AGENT_DIR pointing at ~/.omp/agent cannot
+    // double-count the same transcripts under two source labels.
+    const omoCollidesWithOmp = omoAgentDirCollidesWithOmp(process.env);
+    const omoFiles = !sourceAllowed("omo") || omoCollidesWithOmp
+      ? []
+      : mergeBothFileSources({ resolveFiles: resolveOmoSessionFiles, env: process.env });
+    const omoSubagentFiles = !sourceAllowed("omo") || omoCollidesWithOmp
+      ? []
+      : mergeBothFileSources({ resolveFiles: resolveOmoSubagentFiles, env: process.env });
     if (omoFiles.length > 0 || omoSubagentFiles.length > 0) {
       if (progress?.enabled) {
         progress.start(`Parsing OmO ${renderBar(0)} | buckets 0`);

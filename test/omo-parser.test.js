@@ -10,6 +10,7 @@ const {
   resolveOmoAgentDir,
   resolveOmoSessionFiles,
   resolveOmoSubagentFiles,
+  omoAgentDirCollidesWithOmp,
 } = require("../src/lib/rollout");
 const { computeRowCost, ensurePricingLoaded } = require("../src/lib/pricing");
 
@@ -243,4 +244,80 @@ test("computeRowCost does not bill OmO reasoning on top of output", async () => 
   const additiveWithout = computeRowCost({ ...base, source: "omp" });
   const additiveWith = computeRowCost({ ...base, source: "omp", reasoning_output_tokens: 500 });
   assert.ok(additiveWith > additiveWithout);
+});
+
+test("parseOmoIncremental fallback total excludes reasoning when totalTokens is absent", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-omo-fallback-"));
+  try {
+    const ts = Date.UTC(2026, 7, 27, 23, 28, 16);
+    const filePath = await writeSession(tmp, [
+      sessionHeader(),
+      omoAssistantLine({
+        id: "no-total",
+        input: 100,
+        output: 50,
+        cacheRead: 20,
+        cacheWrite: 0,
+        reasoning: 30,
+        timestamp: ts,
+      }),
+    ]);
+    const queuePath = path.join(tmp, "queue.jsonl");
+    const cursors = { version: 1, files: {}, updatedAt: null };
+
+    await parseOmoIncremental({ sessionFiles: [filePath], cursors, queuePath });
+    const [row] = await readJsonLines(queuePath);
+    assert.equal(row.reasoning_output_tokens, 30);
+    assert.equal(row.total_tokens, 170, "100+50+20+0, reasoning already in output");
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("parseOmoIncremental second run on an unchanged file queues no new buckets", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-omo-resync-"));
+  try {
+    const ts = Date.UTC(2026, 3, 5, 14, 10, 0);
+    const filePath = await writeSession(tmp, [
+      sessionHeader(),
+      omoAssistantLine({ id: "once", input: 10, output: 5, totalTokens: 15, timestamp: ts }),
+    ]);
+    const queuePath = path.join(tmp, "queue.jsonl");
+    const cursors = { version: 1, files: {}, updatedAt: null };
+
+    const first = await parseOmoIncremental({ sessionFiles: [filePath], cursors, queuePath });
+    assert.equal(first.eventsAggregated, 1);
+    assert.equal(first.bucketsQueued, 1);
+
+    const second = await parseOmoIncremental({ sessionFiles: [filePath], cursors, queuePath });
+    assert.equal(second.eventsAggregated, 0);
+    assert.equal(second.bucketsQueued, 0);
+    assert.equal((await readJsonLines(queuePath)).length, 1);
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("omoAgentDirCollidesWithOmp is true only when both overrides resolve to the same dir", async () => {
+  const shared = await fs.mkdtemp(path.join(os.tmpdir(), "tt-omo-collide-"));
+  const other = await fs.mkdtemp(path.join(os.tmpdir(), "tt-omo-other-"));
+  try {
+    assert.equal(
+      omoAgentDirCollidesWithOmp({
+        TOKENTRACKER_OMO_AGENT_DIR: shared,
+        TOKENTRACKER_OMP_AGENT_DIR: shared,
+      }),
+      true,
+    );
+    assert.equal(
+      omoAgentDirCollidesWithOmp({
+        TOKENTRACKER_OMO_AGENT_DIR: shared,
+        TOKENTRACKER_OMP_AGENT_DIR: other,
+      }),
+      false,
+    );
+  } finally {
+    await fs.rm(shared, { recursive: true, force: true });
+    await fs.rm(other, { recursive: true, force: true });
+  }
 });

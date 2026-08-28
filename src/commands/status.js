@@ -919,6 +919,9 @@ async function cmdStatus(argv = []) {
               notify_extension_path: ompHookState.extensionPath || null,
             }
           : { installed: false },
+        omo: omoInstalled
+          ? { installed: true, files: omoFiles.length }
+          : { installed: false },
         pi: piInstalled
           ? { installed: true, files: piFiles.length }
           : { installed: false },
